@@ -277,6 +277,48 @@ body.light .upcoming-chip{background:rgba(26,95,168,.1);}
 .pill{padding:6px 14px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Inter',sans-serif;white-space:nowrap;-webkit-appearance:none;}
 .pill.active{background:var(--gold-glow);color:var(--gold);border-color:var(--gold-dim);}
 
+/* TAGS */
+.tag-chip{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;
+  background:var(--surface2);color:var(--muted);border:1px solid var(--border);
+  white-space:nowrap;cursor:default;
+}
+.tag-chip.colored{background:var(--tag-bg,var(--surface2));color:var(--tag-fg,var(--muted));border-color:var(--tag-border,var(--border));}
+.sc-tags{padding:8px 16px 10px;display:flex;gap:6px;flex-wrap:wrap;}
+.tag-input-wrap{
+  display:flex;flex-wrap:wrap;gap:6px;align-items:center;
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:8px 12px;cursor:text;
+  transition:border-color .15s;min-height:46px;
+}
+.tag-input-wrap.focus{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-glow);}
+.tag-pill-rm{
+  display:inline-flex;align-items:center;gap:4px;
+  padding:3px 8px 3px 10px;border-radius:20px;
+  font-size:12px;font-weight:500;cursor:default;
+  background:var(--surface2);color:var(--text);border:1px solid var(--border);
+}
+.tag-pill-rm .rm{cursor:pointer;color:var(--muted);font-size:14px;line-height:1;padding:0 1px;}
+.tag-pill-rm .rm:hover{color:var(--red);}
+.tag-bare-input{
+  border:none;background:transparent;outline:none;
+  color:var(--text);font-size:14px;font-family:'Inter',sans-serif;
+  min-width:80px;flex:1;padding:2px 0;
+}
+.tag-bare-input::placeholder{color:var(--dim);}
+.tag-suggestions{
+  background:var(--surface);border:1px solid var(--border);
+  border-radius:10px;padding:6px 0;margin-top:4px;
+  display:none;
+}
+.tag-suggestions.show{display:block;}
+.tag-sugg-item{
+  padding:9px 14px;font-size:13px;cursor:pointer;color:var(--text);
+  display:flex;align-items:center;gap:8px;
+}
+.tag-sugg-item:active,.tag-sugg-item:hover{background:var(--surface2);}
+
 .detail-head{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;margin-bottom:12px;transition:background .25s,border-color .25s;}
 .detail-title{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;margin-bottom:6px;line-height:1.3;}
 .detail-date{font-size:13px;color:var(--muted);margin-bottom:12px;}
@@ -380,6 +422,7 @@ body.light .s0{background:rgba(181,96,10,.1);color:#b5600a;}
   <!-- SESSIONS -->
   <div class="page" id="page-sessions">
     <div class="content">
+      <div class="pill-row" id="tag-filter-row" style="margin-bottom:8px;"></div>
       <div class="pill-row">
         <button class="pill active" onclick="filterSessions('all',this)">全部</button>
         <button class="pill" onclick="filterSessions('active',this)">進行中</button>
@@ -395,6 +438,15 @@ body.light .s0{background:rgba(181,96,10,.1);color:#b5600a;}
       <div class="form-group">
         <label class="form-label">學習日期</label>
         <input type="date" class="form-input" id="inp-date" onchange="updatePreview()">
+      </div>
+      <div class="form-group">
+        <label class="form-label">標籤（選填）</label>
+        <div class="tag-input-wrap" id="tag-wrap" onclick="document.getElementById('tag-bare').focus()">
+          <div id="tag-pills"></div>
+          <input class="tag-bare-input" id="tag-bare" placeholder="輸入後按 Enter 新增…" autocomplete="off"
+            oninput="onTagInput()" onkeydown="onTagKey(event)" onfocus="showSuggestions()" onblur="hideSuggestions()">
+        </div>
+        <div class="tag-suggestions" id="tag-suggestions"></div>
       </div>
       <div class="form-group">
         <label class="form-label">學習內容筆記</label>
@@ -585,10 +637,69 @@ function setSyncStatus(s){
 const INTERVALS=[1,2,4,7,15,30];
 const R_LABELS=['第1天','第2天','第4天','第7天','第15天','第30天'];
 const SC=['s1','s2','s3','s4','s5','s6'];
+
+// Tag colour palette (bg / fg / border) — 10 colours cycling
+const TAG_PALETTES=[
+  ['rgba(244,185,66,.18)','#c4922a','rgba(244,185,66,.35)'],
+  ['rgba(96,165,250,.18)','#3b82f6','rgba(96,165,250,.35)'],
+  ['rgba(52,211,153,.18)','#059669','rgba(52,211,153,.35)'],
+  ['rgba(248,113,113,.18)','#dc2626','rgba(248,113,113,.35)'],
+  ['rgba(167,139,250,.18)','#7c3aed','rgba(167,139,250,.35)'],
+  ['rgba(251,146,60,.18)','#ea580c','rgba(251,146,60,.35)'],
+  ['rgba(45,212,191,.18)','#0d9488','rgba(45,212,191,.35)'],
+  ['rgba(244,114,182,.18)','#db2777','rgba(244,114,182,.35)'],
+  ['rgba(163,230,53,.18)','#65a30d','rgba(163,230,53,.35)'],
+  ['rgba(148,163,184,.18)','#64748b','rgba(148,163,184,.35)'],
+];
+// light-mode overrides (stronger contrast)
+const TAG_PALETTES_LIGHT=[
+  ['rgba(181,96,10,.12)','#92400e','rgba(181,96,10,.3)'],
+  ['rgba(26,95,168,.12)','#1e40af','rgba(26,95,168,.3)'],
+  ['rgba(20,95,60,.12)','#065f46','rgba(20,95,60,.3)'],
+  ['rgba(192,57,43,.12)','#991b1b','rgba(192,57,43,.3)'],
+  ['rgba(109,40,217,.12)','#5b21b6','rgba(109,40,217,.3)'],
+  ['rgba(194,90,10,.12)','#9a3412','rgba(194,90,10,.3)'],
+  ['rgba(13,148,136,.12)','#0f766e','rgba(13,148,136,.3)'],
+  ['rgba(219,39,119,.12)','#9d174d','rgba(219,39,119,.3)'],
+  ['rgba(101,163,13,.12)','#3f6212','rgba(101,163,13,.3)'],
+  ['rgba(100,116,139,.12)','#334155','rgba(100,116,139,.3)'],
+];
+
+// Assign consistent colour index per tag name
+const tagColorMap = {}; // tag -> palette index
+let tagColorCounter = 0;
+function getTagPalette(tag){
+  if(tagColorMap[tag]===undefined){
+    tagColorMap[tag] = tagColorCounter % TAG_PALETTES.length;
+    tagColorCounter++;
+  }
+  const isLight = document.body.classList.contains('light');
+  return isLight ? TAG_PALETTES_LIGHT[tagColorMap[tag]] : TAG_PALETTES[tagColorMap[tag]];
+}
+
+function tagChipHtml(tag, removable=false, sid=null){
+  const [bg,fg,border] = getTagPalette(tag);
+  if(removable){
+    return `<span class="tag-pill-rm" style="background:${bg};color:${fg};border-color:${border};">${esc(tag)}<span class="rm" onclick="removeInputTag('${esc(tag)}')">×</span></span>`;
+  }
+  return `<span class="tag-chip colored" style="--tag-bg:${bg};--tag-fg:${fg};--tag-border:${border};">${esc(tag)}</span>`;
+}
+
+// All unique tags across sessions
+function allTags(){
+  const set=new Set();
+  sessions.forEach(s=>(s.tags||[]).forEach(t=>set.add(t)));
+  return [...set].sort();
+}
+
 let sessions=[];
 let currentFilter='all';
+let currentTagFilter='';  // '' = no tag filter
 let detailId=null;
 let prevPage='home';
+
+// Tag input state
+let inputTags=[];  // tags being built in the add form
 
 // Save: write to Firestore (real-time listener handles local array)
 function save(session){
@@ -716,6 +827,67 @@ function showPage(name,id){
 function goBack(){showPage(prevPage);}
 
 // ═══════════════════════════════
+//  TAG INPUT
+// ═══════════════════════════════
+function renderInputTags(){
+  document.getElementById('tag-pills').innerHTML = inputTags.map(t=>tagChipHtml(t,true)).join('');
+}
+function addInputTag(val){
+  const v=val.trim().slice(0,20);
+  if(v && !inputTags.includes(v)){ inputTags.push(v); renderInputTags(); }
+  document.getElementById('tag-bare').value='';
+  renderTagSuggestions('');
+}
+function removeInputTag(tag){
+  inputTags=inputTags.filter(t=>t!==tag);
+  renderInputTags();
+}
+function onTagKey(e){
+  const inp=document.getElementById('tag-bare');
+  if((e.key==='Enter'||e.key===','||e.key==='，')&&inp.value.trim()){
+    e.preventDefault();addInputTag(inp.value);
+  } else if(e.key==='Backspace'&&!inp.value&&inputTags.length){
+    inputTags.pop();renderInputTags();
+  }
+}
+function onTagInput(){
+  const v=document.getElementById('tag-bare').value;
+  renderTagSuggestions(v);
+}
+function renderTagSuggestions(q){
+  const box=document.getElementById('tag-suggestions');
+  const existing=allTags().filter(t=>!inputTags.includes(t)&&(!q||t.toLowerCase().includes(q.toLowerCase())));
+  if(!existing.length){box.classList.remove('show');return;}
+  box.innerHTML=existing.map(t=>`<div class="tag-sugg-item" onmousedown="addInputTag('${esc(t)}')">${tagChipHtml(t)} ${esc(t)}</div>`).join('');
+  box.classList.add('show');
+}
+function showSuggestions(){
+  document.getElementById('tag-input-wrap')?.classList.add('focus');
+  document.getElementById('tag-wrap')?.classList.add('focus');
+  renderTagSuggestions(document.getElementById('tag-bare').value);
+}
+function hideSuggestions(){
+  document.getElementById('tag-wrap')?.classList.remove('focus');
+  setTimeout(()=>document.getElementById('tag-suggestions')?.classList.remove('show'),150);
+}
+
+// ═══════════════════════════════
+//  RENDER TAG FILTER ROW
+// ═══════════════════════════════
+function renderTagFilterRow(){
+  const row=document.getElementById('tag-filter-row');
+  const tags=allTags();
+  if(!tags.length){row.innerHTML='';return;}
+  row.innerHTML=`<button class="pill${currentTagFilter===''?' active':''}" onclick="setTagFilter('',this)">所有標籤</button>`
+    +tags.map(t=>`<button class="pill${currentTagFilter===t?' active':''}" onclick="setTagFilter('${esc(t)}',this)">${tagChipHtml(t)} ${esc(t)}</button>`).join('');
+}
+function setTagFilter(tag, btn){
+  currentTagFilter=tag;
+  renderTagFilterRow();
+  renderSessions();
+}
+
+// ═══════════════════════════════
 //  HOME
 // ═══════════════════════════════
 function renderHome(){
@@ -778,9 +950,12 @@ function markDone(sid,i){
 //  SESSIONS
 // ═══════════════════════════════
 function renderSessions(){
-  let list=sessions;
-  if(currentFilter==='active') list=sessions.filter(s=>!isComplete(s));
-  if(currentFilter==='complete') list=sessions.filter(s=>isComplete(s));
+  renderTagFilterRow();
+  // sort by study date descending (newest first), then by id desc for same date
+  let list=[...sessions].sort((a,b)=> a.date<b.date?1:a.date>b.date?-1:b.id-a.id);
+  if(currentFilter==='active') list=list.filter(s=>!isComplete(s));
+  if(currentFilter==='complete') list=list.filter(s=>isComplete(s));
+  if(currentTagFilter) list=list.filter(s=>(s.tags||[]).includes(currentTagFilter));
   const t=today(),el=document.getElementById('sessions-list');
   if(!list.length){
     el.innerHTML=`<div class="empty-box"><div class="empty-icon">🧠</div><div class="empty-title">尚無學習記錄</div><div class="empty-desc">點下方「＋新增」開始使用</div></div>`;
@@ -792,8 +967,14 @@ function renderSessions(){
       const done=(s.reviewDone||[]).includes(i),d=diff(t,rd);
       return `<div class="mn ${SC[i]}${done?' mn-done':''}${d===0&&!done?' mn-today':''}">${done?'✓':i+1}</div>`;
     }).join('');
+    const tagsHtml=(s.tags||[]).length
+      ?`<div class="sc-tags">${(s.tags).map(t=>tagChipHtml(t)).join('')}</div>`:'';
     return `<div class="session-card" onclick="showPage('detail',${s.id})">
-      <div class="sc-top"><div class="sc-title">${esc(s.title)}</div><div class="sc-date">學習日：${fmtDate(s.date)}</div></div>
+      <div class="sc-top">
+        <div class="sc-title">${esc(s.title)}</div>
+        <div class="sc-date">學習日：${fmtDate(s.date)}</div>
+      </div>
+      ${tagsHtml}
       <div class="sc-nodes">${nodes}</div>
       <div class="sc-prog"><div class="prog-wrap"><div class="prog-fill" style="width:${prog.pct}%"></div></div><div class="prog-txt">${prog.done}/${prog.total} 完成</div></div>
     </div>`;
@@ -821,17 +1002,22 @@ function updatePreview(){
 function addSession(){
   const dv=document.getElementById('inp-date').value;
   const notes=document.getElementById('inp-notes').value.trim();
+  // flush any pending tag text
+  const bareVal=document.getElementById('tag-bare').value.trim();
+  if(bareVal) addInputTag(bareVal);
   if(!dv){alert('請選擇學習日期');return;}
   if(!notes){alert('請填寫學習內容');return;}
-  // derive title from first non-empty line
-  const title=notes.split('\n').find(l=>l.trim())||'（無標題）';
-  const s={id:Date.now(),date:dv,title:title.trim().slice(0,60),notes,reviewDone:[],reviewNotes:{}};
+  const title=(notes.split('\n').find(l=>l.trim())||'（無標題）').trim().slice(0,60);
+  const s={id:Date.now(),date:dv,title,notes,tags:[...inputTags],reviewDone:[],reviewNotes:{}};
   save(s);
   clearForm();showPage('sessions');
 }
 function clearForm(){
   document.getElementById('inp-date').value=today();
   document.getElementById('inp-notes').value='';
+  inputTags=[];
+  renderInputTags();
+  document.getElementById('tag-bare').value='';
   updatePreview();
 }
 
@@ -863,13 +1049,16 @@ function renderDetail(sid){
       <button class="check-btn${done?' on':''}" onclick="toggleRev(${s.id},${i})">${done?'✓':'○'}</button>
     </div>`;
   }).join('');
+  const tagsHtml=(s.tags||[]).length
+    ?`<div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;">${(s.tags).map(t=>tagChipHtml(t)).join('')}</div>`:'';
   document.getElementById('detail-content').innerHTML=`
     <div class="detail-head">
       <div class="detail-date">學習日：${fmtDate(s.date)}</div>
+      ${tagsHtml}
       <div class="prog-row"><div class="prog-wrap" style="flex:1"><div class="prog-fill" style="width:${prog.pct}%"></div></div><span style="font-size:12px;color:var(--muted)">複習 ${prog.done}/${prog.total}</span></div>
       <div class="notes-view" id="notes-view">${s.notes?esc(s.notes):'<span style="color:var(--dim)">（未填寫筆記）</span>'}</div>
       <div style="display:flex;gap:8px;margin-top:12px;">
-        <button class="btn btn-ghost" style="flex:1;font-size:13px;" onclick="editNotes(${s.id})">✏️ 編輯筆記</button>
+        <button class="btn btn-ghost" style="flex:1;font-size:13px;" onclick="editNotes(${s.id})">✏️ 編輯</button>
         <button class="btn btn-danger" style="font-size:13px;" onclick="deleteSession(${s.id})">刪除</button>
       </div>
     </div>
@@ -887,17 +1076,69 @@ function toggleRev(sid,i){
 }
 function editNotes(sid){
   const s=sessions.find(x=>x.id===sid);if(!s)return;
-  document.getElementById('notes-view').innerHTML=`
+  // seed inputTags with existing tags for editing
+  inputTags=[...(s.tags||[])];
+  const v=document.getElementById('notes-view');
+  v.innerHTML=`
+    <div style="margin-bottom:10px;">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">標籤</div>
+      <div class="tag-input-wrap" id="tag-wrap-edit" onclick="document.getElementById('tag-bare-edit').focus()">
+        <div id="tag-pills-edit"></div>
+        <input class="tag-bare-input" id="tag-bare-edit" placeholder="輸入後按 Enter…" autocomplete="off"
+          oninput="onTagInputEdit()" onkeydown="onTagKeyEdit(event)" onfocus="showSuggestionsEdit()" onblur="hideSuggestionsEdit()">
+      </div>
+      <div class="tag-suggestions" id="tag-suggestions-edit"></div>
+    </div>
     <textarea class="edit-notes-ta" id="edit-ta">${esc(s.notes||'')}</textarea>
     <button class="save-notes-btn" onclick="saveNotes(${sid})">儲存</button>`;
+  renderInputTagsEdit();
   document.getElementById('edit-ta').focus();
 }
+function renderInputTagsEdit(){
+  const el=document.getElementById('tag-pills-edit');
+  if(el) el.innerHTML=inputTags.map(t=>
+    `<span class="tag-pill-rm" style="background:${getTagPalette(t)[0]};color:${getTagPalette(t)[1]};border-color:${getTagPalette(t)[2]};">${esc(t)}<span class="rm" onclick="removeInputTagEdit('${esc(t)}')">×</span></span>`
+  ).join('');
+}
+function removeInputTagEdit(tag){ inputTags=inputTags.filter(t=>t!==tag); renderInputTagsEdit(); }
+function onTagKeyEdit(e){
+  const inp=document.getElementById('tag-bare-edit');
+  if((e.key==='Enter'||e.key===','||e.key==='，')&&inp.value.trim()){
+    e.preventDefault();
+    const v=inp.value.trim().slice(0,20);
+    if(v&&!inputTags.includes(v)) inputTags.push(v);
+    renderInputTagsEdit();inp.value='';renderTagSuggestionsEdit('');
+  } else if(e.key==='Backspace'&&!inp.value&&inputTags.length){
+    inputTags.pop();renderInputTagsEdit();
+  }
+}
+function onTagInputEdit(){ renderTagSuggestionsEdit(document.getElementById('tag-bare-edit').value); }
+function renderTagSuggestionsEdit(q){
+  const box=document.getElementById('tag-suggestions-edit');if(!box)return;
+  const existing=allTags().filter(t=>!inputTags.includes(t)&&(!q||t.toLowerCase().includes(q.toLowerCase())));
+  if(!existing.length){box.classList.remove('show');return;}
+  box.innerHTML=existing.map(t=>`<div class="tag-sugg-item" onmousedown="addInputTagEdit('${esc(t)}')">${tagChipHtml(t)} ${esc(t)}</div>`).join('');
+  box.classList.add('show');
+}
+function addInputTagEdit(val){
+  const v=val.trim().slice(0,20);
+  if(v&&!inputTags.includes(v)){inputTags.push(v);renderInputTagsEdit();}
+  document.getElementById('tag-bare-edit').value='';
+  renderTagSuggestionsEdit('');
+}
+function showSuggestionsEdit(){ document.getElementById('tag-wrap-edit')?.classList.add('focus'); renderTagSuggestionsEdit(document.getElementById('tag-bare-edit')?.value||''); }
+function hideSuggestionsEdit(){ document.getElementById('tag-wrap-edit')?.classList.remove('focus'); setTimeout(()=>document.getElementById('tag-suggestions-edit')?.classList.remove('show'),150); }
+
 function saveNotes(sid){
   const s=sessions.find(x=>x.id===sid);if(!s)return;
   const ta=document.getElementById('edit-ta');
+  // flush any pending tag text
+  const bareVal=document.getElementById('tag-bare-edit')?.value.trim();
+  if(bareVal){ const v=bareVal.slice(0,20); if(v&&!inputTags.includes(v)) inputTags.push(v); }
   if(ta){
     s.notes=ta.value;
     s.title=(ta.value.split('\n').find(l=>l.trim())||'（無標題）').trim().slice(0,60);
+    s.tags=[...inputTags];
     save(s);renderDetail(sid);
   }
 }
