@@ -397,12 +397,8 @@ body.light .s0{background:rgba(181,96,10,.1);color:#b5600a;}
         <input type="date" class="form-input" id="inp-date" onchange="updatePreview()">
       </div>
       <div class="form-group">
-        <label class="form-label">學習標題</label>
-        <input type="text" class="form-input" id="inp-title" placeholder="這次學了什麼？" oninput="updatePreview()">
-      </div>
-      <div class="form-group">
         <label class="form-label">學習內容筆記</label>
-        <textarea class="form-textarea" id="inp-notes" placeholder="在這裡自由記錄重點、公式、例句、心得…&#10;&#10;複習時可隨時查看。"></textarea>
+        <textarea class="form-textarea" id="inp-notes" placeholder="在這裡自由記錄重點、公式、例句、心得…&#10;&#10;第一行會作為標題顯示在列表中。&#10;複習時可隨時查看。" style="min-height:300px;"></textarea>
       </div>
       <div class="preview-box">
         <div class="preview-head">複習節點預覽</div>
@@ -824,17 +820,17 @@ function updatePreview(){
 }
 function addSession(){
   const dv=document.getElementById('inp-date').value;
-  const title=document.getElementById('inp-title').value.trim();
   const notes=document.getElementById('inp-notes').value.trim();
   if(!dv){alert('請選擇學習日期');return;}
-  if(!title){alert('請輸入學習標題');return;}
-  const s={id:Date.now(),date:dv,title,notes,reviewDone:[],reviewNotes:{}};
-  save(s); // Firestore onSnapshot will update sessions array automatically
+  if(!notes){alert('請填寫學習內容');return;}
+  // derive title from first non-empty line
+  const title=notes.split('\n').find(l=>l.trim())||'（無標題）';
+  const s={id:Date.now(),date:dv,title:title.trim().slice(0,60),notes,reviewDone:[],reviewNotes:{}};
+  save(s);
   clearForm();showPage('sessions');
 }
 function clearForm(){
   document.getElementById('inp-date').value=today();
-  document.getElementById('inp-title').value='';
   document.getElementById('inp-notes').value='';
   updatePreview();
 }
@@ -845,7 +841,8 @@ function clearForm(){
 function renderDetail(sid){
   const s=sessions.find(x=>x.id===sid);if(!s)return;
   const t=today(),prog=progress(s);
-  document.getElementById('tb-title').textContent=s.title;
+  const titleLine=s.title||(s.notes||'').split('\n').find(l=>l.trim())||'（無標題）';
+  document.getElementById('tb-title').textContent=titleLine;
   document.getElementById('tb-sub').textContent=fmtDate(s.date);
   const tlRows=rdates(s.date).map((rd,i)=>{
     const done=(s.reviewDone||[]).includes(i),d=diff(t,rd);
@@ -868,10 +865,8 @@ function renderDetail(sid){
   }).join('');
   document.getElementById('detail-content').innerHTML=`
     <div class="detail-head">
-      <div class="detail-title">${esc(s.title)}</div>
       <div class="detail-date">學習日：${fmtDate(s.date)}</div>
       <div class="prog-row"><div class="prog-wrap" style="flex:1"><div class="prog-fill" style="width:${prog.pct}%"></div></div><span style="font-size:12px;color:var(--muted)">複習 ${prog.done}/${prog.total}</span></div>
-      <div style="margin-bottom:8px;font-size:12px;color:var(--muted);">📖 學習筆記</div>
       <div class="notes-view" id="notes-view">${s.notes?esc(s.notes):'<span style="color:var(--dim)">（未填寫筆記）</span>'}</div>
       <div style="display:flex;gap:8px;margin-top:12px;">
         <button class="btn btn-ghost" style="flex:1;font-size:13px;" onclick="editNotes(${s.id})">✏️ 編輯筆記</button>
@@ -900,7 +895,11 @@ function editNotes(sid){
 function saveNotes(sid){
   const s=sessions.find(x=>x.id===sid);if(!s)return;
   const ta=document.getElementById('edit-ta');
-  if(ta){s.notes=ta.value;save(s);renderDetail(sid);}
+  if(ta){
+    s.notes=ta.value;
+    s.title=(ta.value.split('\n').find(l=>l.trim())||'（無標題）').trim().slice(0,60);
+    save(s);renderDetail(sid);
+  }
 }
 function deleteSession(sid){
   if(!confirm('確定刪除此學習記錄？'))return;
