@@ -1204,12 +1204,12 @@ function editNotes(sid){
   v.style.border='none';
   v.style.background='transparent';
   v.innerHTML=`
-    <div style="margin-bottom:8px;">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;letter-spacing:.2px;">學習日期</div>
-      <input type="date" class="date-edit-input" id="edit-date" value="${s.date}" style="margin-bottom:0;">
+    <div style="margin-bottom:0.5em;">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:3px;">學習日期</div>
+      <input type="date" class="date-edit-input" id="edit-date" value="${s.date}">
     </div>
-    <div style="margin-bottom:8px;">
-      <div style="font-size:11px;color:var(--muted);margin-bottom:4px;letter-spacing:.2px;">標籤</div>
+    <div style="margin-bottom:0.5em;">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:3px;">標籤</div>
       <div class="tag-input-wrap" id="tag-wrap-edit" onclick="document.getElementById('tag-bare-edit').focus()">
         <div id="tag-pills-edit"></div>
         <input class="tag-bare-input" id="tag-bare-edit" placeholder="輸入後按 Enter…" autocomplete="off"
@@ -1217,8 +1217,8 @@ function editNotes(sid){
       </div>
       <div class="tag-suggestions" id="tag-suggestions-edit"></div>
     </div>
-    <textarea class="edit-notes-ta" id="edit-ta">${esc(s.notes||'')}</textarea>
-    <button class="save-notes-btn" onclick="saveNotes(${sid})">儲存</button>`;
+    <textarea class="edit-notes-ta" id="edit-ta" style="margin-top:0.5em;">${esc(s.notes||'')}</textarea>
+    <button class="save-notes-btn" onclick="saveNotes(${sid})" style="margin-top:6px;">儲存</button>`;
   renderInputTagsEdit();
   document.getElementById('edit-ta').focus();
 }
