@@ -324,7 +324,7 @@ body.light .upcoming-chip{background:rgba(26,95,168,.1);}
   color:var(--text);padding:8px 12px;border-radius:8px;
   font-size:15px;font-family:'Inter',sans-serif;outline:none;
   transition:border-color .15s;-webkit-appearance:none;
-  width:100%;margin-bottom:10px;
+  width:100%;
 }
 .date-edit-input:focus{border-color:var(--gold);}
 
@@ -1199,8 +1199,12 @@ function editNotes(sid){
   // seed inputTags with existing tags for editing
   inputTags=[...(s.tags||[])];
   const v=document.getElementById('notes-view');
+  v.style.padding='0';
+  v.style.minHeight='0';
+  v.style.border='none';
+  v.style.background='transparent';
   v.innerHTML=`
-    <div style="margin-bottom:6px;">
+    <div style="margin-bottom:8px;">
       <div style="font-size:11px;color:var(--muted);margin-bottom:4px;letter-spacing:.2px;">學習日期</div>
       <input type="date" class="date-edit-input" id="edit-date" value="${s.date}" style="margin-bottom:0;">
     </div>
@@ -1257,7 +1261,6 @@ function saveNotes(sid){
   const s=sessions.find(x=>x.id===sid);if(!s)return;
   const ta=document.getElementById('edit-ta');
   const dateEl=document.getElementById('edit-date');
-  // flush any pending tag text
   const bareVal=document.getElementById('tag-bare-edit')?.value.trim();
   if(bareVal){ const v=bareVal.slice(0,20); if(v&&!inputTags.includes(v)) inputTags.push(v); }
   if(ta){
@@ -1265,6 +1268,9 @@ function saveNotes(sid){
     s.title=(ta.value.split('\n').find(l=>l.trim())||'（無標題）').trim().slice(0,60);
     s.tags=[...inputTags];
     if(dateEl&&dateEl.value) s.date=dateEl.value;
+    // restore notes-view styles before re-render
+    const nv=document.getElementById('notes-view');
+    if(nv){nv.style.padding='';nv.style.minHeight='';nv.style.border='';nv.style.background='';}
     save(s);renderDetail(sid);
   }
 }
