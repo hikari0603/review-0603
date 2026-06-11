@@ -277,7 +277,57 @@ body.light .upcoming-chip{background:rgba(26,95,168,.1);}
 .pill{padding:6px 14px;border-radius:20px;font-size:12px;cursor:pointer;border:1px solid var(--border);background:transparent;color:var(--muted);font-family:'Inter',sans-serif;white-space:nowrap;-webkit-appearance:none;}
 .pill.active{background:var(--gold-glow);color:var(--gold);border-color:var(--gold-dim);}
 
-/* TAGS */
+/* SEARCH BAR */
+.search-wrap{
+  position:relative;margin-bottom:12px;
+}
+.search-input{
+  width:100%;background:var(--surface);border:1px solid var(--border);
+  color:var(--text);padding:11px 14px 11px 40px;
+  border-radius:10px;font-size:16px;font-family:'Inter',sans-serif;
+  outline:none;transition:border-color .15s,background .25s;
+  -webkit-appearance:none;
+}
+.search-input:focus{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold-glow);}
+.search-input::placeholder{color:var(--dim);}
+.search-icon{
+  position:absolute;left:13px;top:50%;transform:translateY(-50%);
+  color:var(--dim);pointer-events:none;
+}
+.search-clear{
+  position:absolute;right:12px;top:50%;transform:translateY(-50%);
+  background:none;border:none;color:var(--muted);cursor:pointer;
+  font-size:18px;line-height:1;padding:2px;display:none;
+}
+.search-clear.show{display:block;}
+
+/* PAGINATION */
+.pagination{
+  display:flex;align-items:center;justify-content:center;
+  gap:6px;padding:16px 0 4px;flex-wrap:wrap;
+}
+.pg-btn{
+  min-width:36px;height:36px;border-radius:8px;
+  border:1px solid var(--border);background:transparent;
+  color:var(--muted);font-size:13px;font-family:'Inter',sans-serif;
+  cursor:pointer;display:flex;align-items:center;justify-content:center;
+  transition:all .15s;padding:0 10px;
+}
+.pg-btn:active{border-color:var(--gold);color:var(--gold);}
+.pg-btn.active{background:var(--gold-glow);border-color:var(--gold);color:var(--gold);font-weight:600;}
+.pg-btn:disabled{opacity:.3;cursor:default;}
+.pg-info{font-size:12px;color:var(--muted);padding:0 4px;}
+
+/* DATE EDIT INPUT */
+.date-edit-input{
+  background:var(--bg);border:1px solid var(--border);
+  color:var(--text);padding:8px 12px;border-radius:8px;
+  font-size:15px;font-family:'Inter',sans-serif;outline:none;
+  transition:border-color .15s;-webkit-appearance:none;
+  width:100%;margin-bottom:10px;
+}
+.date-edit-input:focus{border-color:var(--gold);}
+
 .tag-chip{
   display:inline-flex;align-items:center;gap:4px;
   padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;
@@ -422,13 +472,19 @@ body.light .s0{background:rgba(181,96,10,.1);color:#b5600a;}
   <!-- SESSIONS -->
   <div class="page" id="page-sessions">
     <div class="content">
+      <div class="search-wrap">
+        <svg class="search-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <input class="search-input" id="search-input" placeholder="搜索標題、內容、標籤…" oninput="onSearch()" autocomplete="off">
+        <button class="search-clear" id="search-clear" onclick="clearSearch()">×</button>
+      </div>
       <div class="pill-row" id="tag-filter-row" style="margin-bottom:8px;"></div>
       <div class="pill-row">
-        <button class="pill active" onclick="filterSessions('all',this)">全部</button>
-        <button class="pill" onclick="filterSessions('active',this)">進行中</button>
-        <button class="pill" onclick="filterSessions('complete',this)">已完成</button>
+        <button class="pill active" id="pill-all" onclick="filterSessions('all',this)">全部</button>
+        <button class="pill" id="pill-active" onclick="filterSessions('active',this)">進行中</button>
+        <button class="pill" id="pill-complete" onclick="filterSessions('complete',this)">已完成</button>
       </div>
       <div id="sessions-list"></div>
+      <div class="pagination" id="pagination"></div>
     </div>
   </div>
 
@@ -695,6 +751,9 @@ function allTags(){
 let sessions=[];
 let currentFilter='all';
 let currentTagFilter='';  // '' = no tag filter
+let currentSearch='';
+let currentPage=1;
+const PAGE_SIZE=30;
 let detailId=null;
 let prevPage='home';
 
@@ -951,24 +1010,36 @@ function markDone(sid,i){
 // ═══════════════════════════════
 function renderSessions(){
   renderTagFilterRow();
-  // sort by study date descending (newest first), then by id desc for same date
-  let list=[...sessions].sort((a,b)=> a.date<b.date?1:a.date>b.date?-1:b.id-a.id);
+  let list=[...sessions].sort((a,b)=>a.date<b.date?1:a.date>b.date?-1:b.id-a.id);
   if(currentFilter==='active') list=list.filter(s=>!isComplete(s));
   if(currentFilter==='complete') list=list.filter(s=>isComplete(s));
   if(currentTagFilter) list=list.filter(s=>(s.tags||[]).includes(currentTagFilter));
+  if(currentSearch){
+    const q=currentSearch.toLowerCase();
+    list=list.filter(s=>
+      (s.title||'').toLowerCase().includes(q)||
+      (s.notes||'').toLowerCase().includes(q)||
+      (s.tags||[]).some(t=>t.toLowerCase().includes(q))
+    );
+  }
+  const total=list.length;
+  const totalPages=Math.max(1,Math.ceil(total/PAGE_SIZE));
+  if(currentPage>totalPages) currentPage=totalPages;
+  const paged=list.slice((currentPage-1)*PAGE_SIZE, currentPage*PAGE_SIZE);
   const t=today(),el=document.getElementById('sessions-list');
-  if(!list.length){
-    el.innerHTML=`<div class="empty-box"><div class="empty-icon">🧠</div><div class="empty-title">尚無學習記錄</div><div class="empty-desc">點下方「＋新增」開始使用</div></div>`;
+  if(!paged.length){
+    el.innerHTML=`<div class="empty-box"><div class="empty-icon">${currentSearch?'🔍':'🧠'}</div><div class="empty-title">${currentSearch?'找不到結果':'尚無學習記錄'}</div><div class="empty-desc">${currentSearch?'試試其他關鍵字':'點下方「＋新增」開始使用'}</div></div>`;
+    document.getElementById('pagination').innerHTML='';
     return;
   }
-  el.innerHTML=list.map(s=>{
+  el.innerHTML=paged.map(s=>{
     const prog=progress(s);
     const nodes=rdates(s.date).map((rd,i)=>{
       const done=(s.reviewDone||[]).includes(i),d=diff(t,rd);
       return `<div class="mn ${SC[i]}${done?' mn-done':''}${d===0&&!done?' mn-today':''}">${done?'✓':i+1}</div>`;
     }).join('');
     const tagsHtml=(s.tags||[]).length
-      ?`<div class="sc-tags">${(s.tags).map(t=>tagChipHtml(t)).join('')}</div>`:'';
+      ?`<div class="sc-tags">${s.tags.map(tg=>tagChipHtml(tg)).join('')}</div>`:'';
     return `<div class="session-card" onclick="showPage('detail',${s.id})">
       <div class="sc-top">
         <div class="sc-title">${esc(s.title)}</div>
@@ -979,11 +1050,60 @@ function renderSessions(){
       <div class="sc-prog"><div class="prog-wrap"><div class="prog-fill" style="width:${prog.pct}%"></div></div><div class="prog-txt">${prog.done}/${prog.total} 完成</div></div>
     </div>`;
   }).join('');
+  // pagination
+  renderPagination(totalPages, total);
+}
+function renderPagination(totalPages, total){
+  const pg=document.getElementById('pagination');
+  if(totalPages<=1){pg.innerHTML='';return;}
+  let html='';
+  html+=`<button class="pg-btn" onclick="goPage(${currentPage-1})" ${currentPage===1?'disabled':''}>‹</button>`;
+  // show up to 5 page buttons with ellipsis
+  let pages=[];
+  if(totalPages<=7){for(let i=1;i<=totalPages;i++)pages.push(i);}
+  else{
+    pages=[1];
+    if(currentPage>3) pages.push('…');
+    for(let i=Math.max(2,currentPage-1);i<=Math.min(totalPages-1,currentPage+1);i++) pages.push(i);
+    if(currentPage<totalPages-2) pages.push('…');
+    pages.push(totalPages);
+  }
+  pages.forEach(p=>{
+    if(p==='…') html+=`<span class="pg-info">…</span>`;
+    else html+=`<button class="pg-btn${p===currentPage?' active':''}" onclick="goPage(${p})">${p}</button>`;
+  });
+  html+=`<button class="pg-btn" onclick="goPage(${currentPage+1})" ${currentPage===totalPages?'disabled':''}>›</button>`;
+  html+=`<span class="pg-info">共${total}筆</span>`;
+  pg.innerHTML=html;
+}
+function goPage(p){
+  currentPage=p;
+  renderSessions();
+  // scroll to top of sessions page
+  document.getElementById('page-sessions').scrollTo({top:0,behavior:'smooth'});
 }
 function filterSessions(type,btn){
   currentFilter=type;
+  currentPage=1;
   document.querySelectorAll('.pill').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');renderSessions();
+  btn.classList.add('active');
+  renderSessions();
+}
+function onSearch(){
+  const val=document.getElementById('search-input').value;
+  currentSearch=val;
+  currentPage=1;
+  const clr=document.getElementById('search-clear');
+  if(clr) clr.classList.toggle('show',val.length>0);
+  renderSessions();
+}
+function clearSearch(){
+  document.getElementById('search-input').value='';
+  currentSearch='';
+  currentPage=1;
+  const clr=document.getElementById('search-clear');
+  if(clr) clr.classList.remove('show');
+  renderSessions();
 }
 
 // ═══════════════════════════════
@@ -1081,6 +1201,10 @@ function editNotes(sid){
   const v=document.getElementById('notes-view');
   v.innerHTML=`
     <div style="margin-bottom:10px;">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">學習日期</div>
+      <input type="date" class="date-edit-input" id="edit-date" value="${s.date}">
+    </div>
+    <div style="margin-bottom:10px;">
       <div style="font-size:12px;color:var(--muted);margin-bottom:6px;">標籤</div>
       <div class="tag-input-wrap" id="tag-wrap-edit" onclick="document.getElementById('tag-bare-edit').focus()">
         <div id="tag-pills-edit"></div>
@@ -1132,6 +1256,7 @@ function hideSuggestionsEdit(){ document.getElementById('tag-wrap-edit')?.classL
 function saveNotes(sid){
   const s=sessions.find(x=>x.id===sid);if(!s)return;
   const ta=document.getElementById('edit-ta');
+  const dateEl=document.getElementById('edit-date');
   // flush any pending tag text
   const bareVal=document.getElementById('tag-bare-edit')?.value.trim();
   if(bareVal){ const v=bareVal.slice(0,20); if(v&&!inputTags.includes(v)) inputTags.push(v); }
@@ -1139,6 +1264,7 @@ function saveNotes(sid){
     s.notes=ta.value;
     s.title=(ta.value.split('\n').find(l=>l.trim())||'（無標題）').trim().slice(0,60);
     s.tags=[...inputTags];
+    if(dateEl&&dateEl.value) s.date=dateEl.value;
     save(s);renderDetail(sid);
   }
 }
